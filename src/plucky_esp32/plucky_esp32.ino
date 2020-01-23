@@ -1,9 +1,12 @@
 
+
+
+
 // config: ////////////////////////////////////////////////////////////
 
 /*************************  General Config *******************************/
 
-#define bufferSize 1024
+#define bufferSize 2048
 #define DEBUG
 
 // Configuration specific key. The value should be modified if config structure was changed.
@@ -29,11 +32,14 @@
 /*************************  WiFi & TCP Config *******************************/
 #define WIFI
 
+/***
 // -- Initial name of the Thing. Used e.g. as SSID of the own Access Point.
 const char thingName[] = "espresso_plucky";
 
 // -- Initial password to connect to the Thing, when it creates an own Access Point.
 const char wifiInitialApPassword[] = "decentDE1";
+****/
+
 
 
 #define MAX_TCP_CLIENTS 10
@@ -47,9 +53,9 @@ HardwareSerial & Serial_USB = Serial;
 HardwareSerial Serial_DE(SERIAL_DE_UART_NUM);
 HardwareSerial Serial_BLE(SERIAL_BLE_UART_NUM);
 
-
 #ifdef WIFI
 
+/***
 // Instantiate the web configuration interface
 #include <IotWebConf.h>
 DNSServer dnsServer;
@@ -57,19 +63,16 @@ WebServer webServer(80);
 HTTPUpdateServer httpUpdater;
 
 IotWebConf iotWebConf(thingName, &dnsServer, &webServer, wifiInitialApPassword);
+***/
 
 // Instantiate the TCP sockets for talking to the machine
+#include <WiFi.h>
 WiFiServer TCPServer(TCP_PORT);
 WiFiClient TCPClient[MAX_TCP_CLIENTS];
 
 #endif // ifdef WIFI
 
-
-uint8_t buf[bufferSize];
-uint16_t bufIndex = 0;
-
 bool wifiReady = false;
-bool tcpReady = false;
 
 void setup() {
   delay(100);
@@ -96,6 +99,8 @@ void setup() {
   /******* Wifi initialization ***********/
 #ifdef WIFI
 
+/***
+  
   // Initialize the web configuration interface
   iotWebConf.setWifiConnectionCallback(&wifiConnected);
   iotWebConf.init();
@@ -107,22 +112,48 @@ void setup() {
   });
   Serial.println("Web configuration interface initialized.");
 
-#endif // WIFI
+  ***/
 
+    Serial.println();
+    Serial.println();
+    Serial.print("Connecting to durf");
+    WiFi.begin("durf", "joethebird");
+
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+    }
+
+    Serial.println("");
+    Serial.println("WiFi connected");
+    Serial.println("IP address: ");
+    Serial.println(WiFi.localIP());
+    wifiReady = true;
+    TCPServer.begin(); // start TCP server
+    TCPServer.setNoDelay(true);
+    Serial.println("TCP server enabled");
+
+
+#endif // WIFI
 
   delay(10);
   Serial_USB.println("Plucky initialization completed.");
-
 }
 
 void loop() {
 
+  uint8_t buf[bufferSize];
+  uint16_t bufIndex = 0;
+
 #ifdef WIFI
+
+/***
+  
   // Handler for the web configuration UI
   iotWebConf.doLoop();
+***/
 
   if (wifiReady) {
-
     // Check for new incoming connections
     if (TCPServer.hasClient()) {
       //find free/disconnected spot
@@ -154,6 +185,9 @@ void loop() {
     while (Serial_DE.available() && (bufIndex < (bufferSize - 1))) {
       buf[bufIndex] = Serial_DE.read(); // read char from DE UART
       bufIndex++;
+      if(buf[bufIndex-1] == '\n') {
+        break; // we don't want to get into a state where buffers misalign with the message frames
+      }
     }
 
     // Send to serial interfaces
@@ -165,7 +199,7 @@ void loop() {
     if (wifiReady) {
       for (byte client_num = 0; client_num < MAX_TCP_CLIENTS; client_num++) {
         if (TCPClient[client_num]) {
-          TCPClient[client_num].write(buf, bufIndex);
+          TCPClient[client_num].write(buf, bufIndex); 
         }
       }
     }
@@ -179,6 +213,9 @@ void loop() {
     while (Serial_BLE.available() && (bufIndex < (bufferSize - 1))) {
       buf[bufIndex] = Serial_BLE.read();
       bufIndex++;
+      if(buf[bufIndex-1] == '\n') {
+        break; // we don't want to get into a state where buffers misalign with the message frames
+      }
     }
 
     // Send to DE
@@ -192,7 +229,10 @@ void loop() {
     while (Serial_USB.available() && (bufIndex < (bufferSize - 1))) {
       buf[bufIndex] = Serial_USB.read();
       bufIndex++;
-    }
+      if(buf[bufIndex-1] == '\n') {
+        break; // we don't want to get into a state where buffers misalign with the message frames
+      }
+  }
 
     // Send to DE
     Serial_DE.write(buf, bufIndex);
@@ -209,9 +249,12 @@ void loop() {
          while (TCPClient[client_num].available() && (bufIndex < (bufferSize - 1))) {
            buf[bufIndex] = TCPClient[client_num].read();
            bufIndex++;
+           if(buf[bufIndex-1] == '\n') {
+              break; // we don't want to get into a state where buffers misalign with the message frames
+            }         
          }
 
-          // Send to DE
+         // Send to DE
          Serial_DE.write(buf, bufIndex);
        }
      }
@@ -223,6 +266,7 @@ void loop() {
 }
 
 
+/***
 void wifiConnected()
 {
   // Initialize the TCP server for talking to the machine
@@ -231,11 +275,12 @@ void wifiConnected()
   TCPServer.begin(); // start TCP server
   TCPServer.setNoDelay(true);
 }
-
+***/
 
 /*
    Web configuration: Handle web requests to "/" path.
 */
+#if 0
 #ifdef WIFI
 void handleRoot()
 {
@@ -253,3 +298,4 @@ void handleRoot()
   webServer.send(200, "text/html", s);
 }
 #endif // WIFI
+#endif // 0
