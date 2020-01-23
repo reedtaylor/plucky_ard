@@ -116,8 +116,8 @@ void setup() {
 
     Serial.println();
     Serial.println();
-    Serial.print("Connecting to durf");
-    WiFi.begin("durf", "joethebird");
+    Serial.print("Connecting to wifi");
+    WiFi.begin("myssid", "mywpa2password");
 
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);
@@ -182,14 +182,28 @@ void loop() {
   // Broadcast DE1 messages to controllers
   if (Serial_DE.available()) {
     bufIndex = 0;
-    while (Serial_DE.available() && (bufIndex < (bufferSize - 1))) {
-      buf[bufIndex] = Serial_DE.read(); // read char from DE UART
-      bufIndex++;
-      if(buf[bufIndex-1] == '\n') {
-        break; // we don't want to get into a state where buffers misalign with the message frames
+    if (Serial_DE.available()) {
+      byte c = Serial_DE.read(); // read char from DE UART
+      Serial_BLE.write(c);
+      Serial_USB.write(c);
+
+#ifdef WIFI
+      // Send to TCP clients
+      if (wifiReady) {
+        for (byte client_num = 0; client_num < MAX_TCP_CLIENTS; client_num++) {
+         if (TCPClient[client_num]) {
+            Serial_USB.write(c);
+            //TCPClient[client_num].write(c); 
+          } 
+        }
+      }
+#endif // WIFI
+      
+      if(c == '\n') {
+        //break; // we don't want to get into a state where buffers misalign with the message frames
       }
     }
-
+/***
     // Send to serial interfaces
     Serial_BLE.write(buf, bufIndex);
     Serial_USB.write(buf, bufIndex);
@@ -204,7 +218,7 @@ void loop() {
       }
     }
 #endif // WIFI
-
+***/
   }
 
   // Bridge BLE messages to DE1
